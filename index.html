@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>콧수염 찾기 대작전! 🐱🔍</title>
+<style>
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+body { margin: 0; overflow: hidden; width: 100vw; height: 100vh; font-family: 'Segoe UI', sans-serif; background: #fce4ec; }
+
+/* Screens */
+.screen { display: none; width: 100%; height: 100%; position: absolute; top: 0; left: 0; flex-direction: column; align-items: center; justify-content: center; }
+.screen.active { display: flex; }
+
+/* START SCREEN */
+#startScreen {
+  background: linear-gradient(180deg, #e8f5e9 0%, #fff9c4 40%, #fce4ec 100%);
+  text-align: center;
+  gap: 12px;
+}
+.title-emoji { font-size: 60px; animation: bounce 1.5s infinite; }
+@keyframes bounce {
+  0%,100% { transform: translateY(0); }
+  50% { transform: translateY(-15px); }
+}
+.game-title { font-size: 28px; font-weight: bold; color: #4a148c; text-shadow: 1px 1px 0 #fff; margin: 0; }
+.game-subtitle { font-size: 15px; color: #6a1b9a; max-width: 320px; line-height: 1.6; padding: 0 20px; }
+.cast-box { 
+  background: rgba(255,255,255,0.8); border-radius: 20px; padding: 12px 20px; 
+  font-size: 14px; color: #333; max-width: 300px; line-height: 1.8;
+  border: 2px dashed #ce93d8;
+}
+.cast-box span { font-size: 20px; }
+.rules-box {
+  background: rgba(255,255,255,0.7); border-radius: 16px; padding: 10px 16px;
+  font-size: 13px; color: #555; max-width: 310px; line-height: 1.6;
+  border: 1px solid #f8bbd0;
+}
+.btn {
+  min-width: 200px; min-height: 56px; border: none; border-radius: 28px;
+  font-size: 20px; font-weight: bold; cursor: pointer; padding: 12px 32px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: transform 0.1s;
+}
+.btn:active { transform: scale(0.95); }
+.btn-start { background: linear-gradient(135deg, #ff6f00, #ff8f00); color: #fff; margin-top: 8px; }
+.btn-restart { background: linear-gradient(135deg, #7c4dff, #b388ff); color: #fff; }
+
+/* GAME SCREEN */
+#gameScreen {
+  background: linear-gradient(180deg, #e8f5e9 0%, #fff9c4 30%, #fce4ec 70%, #e1f5fe 100%);
+  position: relative;
+}
+.game-hud {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 100;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 16px; background: rgba(255,255,255,0.85);
+  border-bottom: 2px solid #f8bbd0;
+}
+.hud-item { font-size: 18px; font-weight: bold; color: #4a148c; }
+.hearts { color: #e91e63; font-size: 22px; letter-spacing: 2px; }
+.timer { color: #ff6f00; }
+.score-display { color: #2e7d32; }
+.game-area {
+  width: 100%; height: 100%; position: relative; overflow: hidden;
+}
+
+/* Floating faces */
+.face-bubble {
+  position: absolute; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; border-radius: 50%; cursor: pointer;
+  transition: transform 0.1s; z-index: 10;
+}
+.face-bubble:active { transform: scale(0.9); }
+.face-emoji { font-size: 40px; line-height: 1; }
+.face-label { font-size: 10px; color: #555; margin-top: 2px; }
+.face-whisker {
+  position: absolute; width: 100%; height: 100%; top: 0; left: 0;
+  pointer-events: none;
+}
+
+/* Whisker lines drawn with pseudo-elements */
+.whisker-marks::before, .whisker-marks::after {
+  content: ''; position: absolute; height: 2px; width: 18px; background: #333; border-radius: 1px;
+}
+.whisker-marks::before { top: 52%; left: -8px; transform: rotate(-8deg); }
+.whisker-marks::after { top: 52%; right: -8px; transform: rotate(8deg); }
+.whisker-marks .w2::before, .whisker-marks .w2::after {
+  content: ''; position: absolute; height: 2px; width: 16px; background: #333; border-radius: 1px;
+}
+.whisker-marks .w2::before { top: 60%; left: -6px; transform: rotate(8deg); }
+.whisker-marks .w2::after { top: 60%; right: -6px; transform: rotate(-8deg); }
+
+/* Pop effect */
+@keyframes pop { 
+  0% { transform: scale(1); opacity: 1; } 
+  50% { transform: scale(1.4); opacity: 0.8; }
+  100% { transform: scale(0); opacity: 0; } 
+}
+.face-pop { animation: pop 0.35s ease-out forwards; pointer-events: none; }
+
+@keyframes wrongShake {
+  0%,100% { transform: translateX(0); }
+  25% { transform: translateX(-8px); }
+  75% { transform: translateX(8px); }
+}
+.face-wrong { animation: wrongShake 0.3s ease-out; pointer-events: none; }
+
+/* Floating flowers */
+.flower {
+  position: absolute; font-size: 20px; opacity: 0.5; pointer-events: none;
+  animation: floatFlower linear infinite;
+}
+@keyframes floatFlower {
+  0% { transform: translateY(100vh) rotate(0deg); opacity: 0.5; }
+  100% { transform: translateY(-60px) rotate(360deg); opacity: 0; }
+}
+
+/* Feedback overlay */
+.feedback {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  font-size: 60px; z-index: 200; pointer-events: none;
+  animation: feedbackAnim 0.6s ease-out forwards;
+}
+@keyframes feedbackAnim {
+  0% { transform: translate(-50%,-50%) scale(0.5); opacity: 1; }
+  100% { transform: translate(-50%,-50%) scale(2); opacity: 0; }
+}
+
+/* RESULT SCREEN */
+#resultScreen {
+  background: linear-gradient(180deg, #ede7f6 0%, #fff9c4 50%, #fce4ec 100%);
+  text-align: center; gap: 14px;
+}
+.result-emoji { font-size: 70px; }
+.result-title { font-size: 26px; font-weight: bold; color: #4a148c; margin: 0; }
+.result-score { font-size: 20px; color: #2e7d32; margin: 0; }
+.result-msg { font-size: 15px; color: #6a1b9a; max-width: 300px; line-height: 1.6; padding: 0 16px; }
+.result-cast {
+  font-size: 36px; letter-spacing: 8px; margin: 8px 0;
+  animation: bounce 1.5s infinite;
+}
+.badge {
+  background: linear-gradient(135deg, #ffd54f, #ffb300); color: #4a148c;
+  padding: 10px 24px; border-radius: 20px; font-size: 16px; font-weight: bold;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+}
+
+/* Canvas for whiskers */
+.whisker-canvas {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;
+}
+</style>
+</head>
+<body>
+
+<!-- START SCREEN -->
+<div id="startScreen" class="screen active">
+  <div class="title-emoji">🐱🔍</div>
+  <h1 class="game-title">콧수염 찾기 대작전!</h1>
+  <div class="cast-box">
+    <span>🐕</span> 상추 · <span>🐱</span> 까미 · <span>🤍</span> 김치 · <span>🦋</span> 열무<br>
+    <small>오두기 친구들과 함께!</small>
+  </div>
+  <div class="rules-box">
+    🌸 둥둥 떠다니는 얼굴 중<br>
+    <b>까미의 콧수염 무늬 🐱</b>를 가진<br>
+    얼굴만 터치하세요!<br><br>
+    ❤️ 하트 3개로 시작<br>
+    ⏱️ 60초 안에 15개 이상 찾으면<br>
+    🏆 <b>'콧수염 마스터'</b> 칭호 획득!
+  </div>
+  <button class="btn btn-start" id="btnStart">🐾 시작하기!</button>
+</div>
+
+<!-- GAME SCREEN -->
+<div id="gameScreen" class="screen">
+  <div class="game-hud">
+    <div class="hud-item hearts" id="heartsDisplay">❤️❤️❤️</div>
+    <div class="hud-item timer">⏱️ <span id="timerDisplay">60</span></div>
+    <div class="hud-item score-display">⭐ <span id="scoreDisplay">0</span></div>
+  </div>
+  <div class="game-area" id="gameArea"></div>
+</div>
+
+<!-- RESULT SCREEN -->
+<div id="resultScreen" class="screen">
+  <div class="result-emoji" id="resultEmoji">🎉</div>
+  <h2 class="result-title" id="resultTitle">결과</h2>
+  <p class="result-score" id="resultScore"></p>
+  <div id="badgeContainer"></div>
+  <p class="result-msg" id="resultMsg"></p>
+  <div class="result-cast">🐕🐱🤍🦋</div>
+  <button class="btn btn-restart" id="btnRestart">🔄 다시 도전!</button>
+</div>
+
+<script>
+// Game State
+let score = 0;
+let hearts = 3;
+let timeLeft = 60;
+let gameTimer = null;
+let spawnTimer = null;
+let isGameRunning = false;
+let bubbles = [];
+let bubbleId = 0;
+
+// Character definitions
+const characters = [
+  { name: '상추', emoji: '🐕', type: 'dog', hasWhisker: false, color: '#a5d6a7' },
+  { name: '까미', emoji: '🐱', type: 'cat', hasWhisker: true, color: '#90caf9' },
+  { name: '김치', emoji: '🤍', type: 'cat', hasWhisker: false, color: '#fff9c4' },
+  { name: '열무', emoji: '🦋', type: 'butterfly', hasWhisker: false, color: '#ce93d8' },
+];
+
+// Extra decoy faces
+const decoyEmojis = [
+  { name: '냥이', emoji: '😺', hasWhisker: false, color: '#ffcc80' },
+  { name: '멍이', emoji: '🐶', hasWhisker: false, color: '#bcaaa4' },
+  { name: '토끼', emoji: '🐰', hasWhisker: false, color: '#f8bbd0' },
+  { name: '곰돌', emoji: '🐻', hasWhisker: false, color: '#d7ccc8' },
+];
+
+const allFaces = [...characters, ...decoyEmojis];
+
+// DOM elements
+const startScreen = document.getElementById('startScreen');
+const gameScreen = document.getElementById('gameScreen');
+const resultScreen = document.getElementById('resultScreen');
+const gameArea = document.getElementById('gameArea');
+const heartsDisplay = document.getElementById('heartsDisplay');
+const timerDisplay = document.getElementById('timerDisplay');
+const scoreDisplay = document.getElementById('scoreDisplay');
+const btnStart = document.getElementById('btnStart');
+const btnRestart = document.getElementById('btnRestart');
+
+function showScreen(screen) {
+  [startScreen, gameScreen, resultScreen].forEach(s => s.classList.remove('active'));
+  screen.classList.add('active');
+}
+
+btnStart.addEventListener('click', startGame);
+btnRestart.addEventListener('click', () => { showScreen(startScreen); });
+
+function startGame() {
+  score = 0;
+  hearts = 3;
+  timeLeft = 60;
+  isGameRunning = true;
+  bubbles = [];
+  bubbleId = 0;
+  gameArea.innerHTML = '';
+  updateHUD();
+  showScreen(gameScreen);
+  createFlowers();
+  
+  gameTimer = setInterval(() => {
+    timeLeft--;
+    timerDisplay.textContent = timeLeft;
+    if (timeLeft <= 10) {
+      timerDisplay.style.color = '#d32f2f';
+    }
+    if (timeLeft <= 0) {
+      endGame();
+    }
+  }, 1000);
+
+  // Spawn bubbles at intervals
+  spawnBubble();
+  spawnTimer = setInterval(() => {
+    if (isGameRunning) {
+      // Increase spawn rate over time
+      const activeBubbles = gameArea.querySelectorAll('.face-bubble').length;
+      if (activeBubbles < getMaxBubbles()) {
+        spawnBubble();
+      }
+    }
+  }, getSpawnRate());
+
+  // Dynamic difficulty
+  setInterval(() => {
+    if (isGameRunning && spawnTimer) {
+      clearInterval(spawnTimer);
+      spawnTimer = setInterval(() => {
+        if (isGameRunning) {
+          const activeBubbles = gameArea.querySelectorAll('.face-bubble').length;
+          if (activeBubbles < getMaxBubbles()) {
+            spawnBubble();
+          }
+        }
+      }, getSpawnRate());
+    }
+  }, 10000);
+}
+
+function getMaxBubbles() {
+  if (timeLeft > 40) return 5;
+  if (timeLeft > 20) return 7;
+  return 9;
+}
+
+function getSpawnRate() {
+  if (timeLeft > 40) return 1200;
+  if (timeLeft > 20) return 900;
+  return 650;
+}
+
+function spawnBubble() {
+  if (!isGameRunning) return;
+
+  const id = bubbleId++;
+  // Decide if this is a whisker face (까미's whisker pattern) — roughly 30% chance
+  const isWhisker = Math.random() < 0.30;
+  
+  let face;
+  if (isWhisker) {
+    // Pick a random face but give it whiskers (까미's pattern)
+    const pool = allFaces.filter(f => !f.hasWhisker);
+    face = { ...pool[Math.floor(Math.random() * pool.length)], hasWhisker: true, isTarget: true };
+  } else {
+    // Pick a random face without whiskers
+    const pool = allFaces.filter(f => !f.hasWhisker);
+    face = { ...pool[Math.floor(Math.random() * pool.length)], hasWhisker: false, isTarget: false };
+  }
+
+  // Sometimes spawn the actual 까미 (always has whiskers, always target)
+  if (Math.random() < 0.15) {
+    face = { ...characters[1], isTarget: true }; // 까미
+  }
+
+  const areaRect = gameArea.getBoundingClientRect();
+  const size = 65 + Math.random() * 20;
+  const x = 10 + Math.random() * (areaRect.width - size - 20);
+  const startY = areaRect.height + 20;
+
+  const el = document.createElement('div');
+  el.className = 'face-bubble';
+  el.dataset.id = id;
+  el.dataset.target = face.isTarget ? '1' : '0';
+  el.style.width = size + 'px';
+  el.style.height = size + 'px';
+  el.style.left = x + 'px';
+  el.style.top = startY + 'px';
+  el.style.background = `radial-gradient(circle at 40% 35%, #fff, ${face.color})`;
+  el.style.boxShadow = `0 3px 15px rgba(0,0,0,0.1)`;
+
+  const emojiDiv = document.createElement('div');
+  emojiDiv.className = 'face-emoji';
+  emojiDiv.textContent = face.emoji;
+  emojiDiv.style.fontSize = (size * 0.55) + 'px';
+  el.appendChild(emojiDiv);
+
+  // Add whisker marks if it's a target
+  if (face.isTarget || face.hasWhisker) {
+    const canvas = document.createElement('canvas');
+    canvas.className = 'whisker-canvas';
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    
+    const cx = size / 2;
+    const cy = size * 0.58;
+    
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1.5;
+    ctx.lineCap = 'round';
+    
+    // Left whiskers
+    for (let i = -1; i <= 1; i++) {
+      ctx.beginPath();
+      ctx.moveTo(cx - 6, cy + i * 4);
+      ctx.quadraticCurveTo(cx - size * 0.25, cy + i * 6 - 2, cx - size * 0.38, cy + i * 8);
+      ctx.stroke();
+    }
+    // Right whiskers
+    for (let i = -1; i <= 1; i++) {
+      ctx.beginPath();
+      ctx.moveTo(cx + 6, cy + i * 4);
+      ctx.quadraticCurveTo(cx + size * 0.25, cy + i * 6 - 2, cx + size * 0.38, cy + i * 8);
+      ctx.stroke();
+    }
+    
+    el.appendChild(canvas);
+  }
+
+  const nameDiv = document.createElement('div');
+  nameDiv.className = 'face-label';
+  nameDiv.style.fontSize = (size * 0.14) + 'px';
+  // Don't show name for whisker targets to make it trickier — show a generic label
+  if (face.isTarget && face.name !== '까미') {
+    nameDiv.textContent = '???';
+  } else {
+    nameDiv.textContent = face.name;
+  }
+  el.appendChild(nameDiv);
+
+  // Touch handler
+  el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!isGameRunning) return;
+    handleTap(el, face.isTarget || face.hasWhisker);
+  });
+  el.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+  }, { passive: false });
+
+  gameArea.appendChild(el);
+
+  // Animate floating up
+  const duration = 5000 + Math.random() * 4000; // 5-9 seconds to float up
+  const wobbleAmount = 30 + Math.random() * 40;
+  const wobbleSpeed = 1500 + Math.random() * 1500;
+  const startTime = performance.now();
+  const startX = x;
+
+  function animate(now) {
+    if (!el.parentNode || !isGameRunning) {
+      if (el.parentNode) el.remove();
+      return;
+    }
+    const elapsed = now - startTime;
+    const progress = elapsed / duration;
+    
+    if (progress >= 1) {
+      el.remove();
+      return;
+    }
+
+    const currentY = startY - (startY + size + 60) * progress;
+    const wobble = Math.sin(elapsed / wobbleSpeed * Math.PI * 2) * wobbleAmount;
+    
+    el.style.top = currentY + 'px';
+    el.style.left = (startX + wobble) + 'px';
+    
+    // Slight opacity fade near top
+    if (progress > 0.85) {
+      el.style.opacity = 1 - ((progress - 0.85) / 0.15);
+    }
+
+    requestAnimationFrame(animate);
+  }
+  requestAnimationFrame(animate);
+}
+
+function handleTap(el, isTarget) {
+  if (el.classList.contains('face-pop') || el.classList.contains('face-wrong')) return;
+
+  if (isTarget) {
+    // Correct!
+    score++;
+    scoreDisplay.textContent = score;
+    el.classList.add('face-pop');
+    showFeedback('✅', el);
+    setTimeout(() => { if (el.parentNode) el.remove(); }, 350);
+  } else {
+    // Wrong!
+    hearts--;
+    updateHUD();
+    el.classList.add('face-wrong');
+    showFeedback('❌', el);
+    setTimeout(() => { 
+      el.classList.remove('face-wrong');
+    }, 300);
+    
+    if (hearts <= 0) {
+      endGame();
+    }
+  }
+}
+
+function showFeedback(emoji, refEl) {
+  const fb = document.createElement('div');
+  fb.className = 'feedback';
+  fb.textContent = emoji;
+  
+  const rect = refEl.getBoundingClientRect();
+  fb.style.left = (rect.left + rect.width / 2) + 'px';
+  fb.style.top = (rect.top + rect.height / 2) + 'px';
+  fb.style.transform = 'translate(-50%,-50%)';
+  
+  document.body.appendChild(fb);
+  setTimeout(() => fb.remove(), 600);
+}
+
+function updateHUD() {
+  let h = '';
+  for (let i = 0; i < 3; i++) {
+    h += i < hearts ? '❤️' : '🖤';
+  }
+  heartsDisplay.textContent = h;
+  scoreDisplay.textContent = score;
+  timerDisplay.textContent = timeLeft;
+}
+
+function createFlowers() {
+  const flowers = ['🌸', '🌼', '🌺', '🌷', '💐', '🌻', '🏵️'];
+  for (let i = 0; i < 8; i++) {
+    setTimeout(() => {
+      if (!isGameRunning) return;
+      const f = document.createElement('div');
+      f.className = 'flower';
+      f.textContent = flowers[Math.floor(Math.random() * flowers.length)];
+      f.style.left = (Math.random() * 90 + 5) + '%';
+      f.style.fontSize = (14 + Math.random() * 16) + 'px';
+      f.style.animationDuration = (8 + Math.random() * 12) + 's';
+      f.style.animationDelay = (Math.random() * 5) + 's';
+      gameArea.appendChild(f);
+    }, i * 800);
+  }
+}
+
+function endGame() {
+  isGameRunning = false;
+  clearInterval(gameTimer);
+  clearInterval(spawnTimer);
+  timerDisplay.style.color = '#ff6f00';
+
+  setTimeout(() => showResult(), 500);
+}
+
+function showResult() {
+  const resultEmoji = document.getElementById('resultEmoji');
+  const resultTitle = document.getElementById('resultTitle');
+  const resultScore = document.getElementById('resultScore');
+  const resultMsg = document.getElementById('resultMsg');
+  const badgeContainer = document.getElementById('badgeContainer');
+
+  badgeContainer.innerHTML = '';
+
+  if (score >= 15) {
+    resultEmoji.textContent = '🏆🎉';
+    resultTitle.textContent = '콧수염 마스터! 🐱✨';
+    resultScore.textContent = `⭐ 최종 점수: ${score}개 발견!`;
+    resultMsg.innerHTML = `
+      축하해요! 까미의 콧수염을 ${score}개나 찾았어요!<br><br>
+      🐱 까미: "내 콧수염을 다 찾다니 대단해!"<br>
+      🐕 상추: "멍멍! 최고야!"<br>
+      🤍 김치: "우리 친구 짱이다~"<br>
+      🦋 열무: "팔랑팔랑~ 축하해!"
+    `;
+    const badge = document.createElement('div');
+    badge.className = 'badge';
+    badge.textContent = '🏅 콧수염 마스터 칭호 획득!';
+    badgeContainer.appendChild(badge);
+  } else if (score >= 10) {
+    resultEmoji.textContent = '😸👏';
+    resultTitle.textContent = '콧수염 탐정! 🔍';
+    resultScore.textContent = `⭐ 최종 점수: ${score}개 발견!`;
+    resultMsg.innerHTML = `
+      잘했어요! 조금만 더 연습하면 마스터!<br><br>
+      🐱 까미: "거의 다 찾았어! 아쉽다~"<br>
+      🐕 상추: "다음엔 꼭 15개!"<br>
+      🤍 김치: "화이팅이다옹~"<br>
+      🦋 열무: "다시 해보자!"
+    `;
+  } else if (score >= 5) {
+    resultEmoji.textContent = '😺💪';
+    resultTitle.textContent = '콧수염 수습생!';
+    resultScore.textContent = `⭐ 최종 점수: ${score}개 발견!`;
+    resultMsg.innerHTML = `
+      좋은 출발이에요! 더 빨리 찾아봐요!<br><br>
+      🐱 까미: "내 콧수염이 그렇게 어려워?"<br>
+      🐕 상추: "연습하면 잘할 수 있어!"<br>
+      🤍 김치: "눈을 크게 뜨고~"<br>
+      🦋 열무: "집중집중!"
+    `;
+  } else {
+    resultEmoji.textContent = '😿💦';
+    resultTitle.textContent = '다시 도전해요!';
+    resultScore.textContent = `⭐ 최종 점수: ${score}개 발견...`;
+    resultMsg.innerHTML = `
+      괜찮아요! 콧수염 무늬(수염 3줄)를<br>잘 살펴보세요!<br><br>
+      🐱 까미: "수염이 있는 얼굴을 찾아줘!"<br>
+      🐕 상추: "힘내! 할 수 있어!"<br>
+      🤍 김치: "같이 연습하자옹~"<br>
+      🦋 열무: "파이팅이야!"
+    `;
+  }
+
+  if (hearts <= 0) {
+    resultTitle.textContent += ' (하트 소진 💔)';
+  }
+
+  showScreen(resultScreen);
+}
+</script>
+</body>
+</html>
