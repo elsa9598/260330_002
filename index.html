@@ -2,14 +2,23 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>콧수염 찾기 대작전! 🐱🔍</title>
 <style>
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
-body { margin: 0; overflow: hidden; width: 100vw; height: 100vh; font-family: 'Segoe UI', sans-serif; background: #fce4ec; }
+body { margin: 0; overflow: hidden; width: 100vw; height: 100dvh; font-family: 'Segoe UI', sans-serif; background: #fce4ec; }
+#rotateMsg {
+  display: none; position: fixed; inset: 0; background: #1a0030; color: #fff;
+  font-size: 1.3rem; font-weight: 700; align-items: center; justify-content: center;
+  flex-direction: column; gap: 14px; z-index: 9999; text-align: center; padding: 20px;
+}
+@media screen and (orientation: landscape) and (max-height: 500px) { #rotateMsg { display: flex; } }
 
 /* Screens */
-.screen { display: none; width: 100%; height: 100%; position: absolute; top: 0; left: 0; flex-direction: column; align-items: center; justify-content: center; }
+.screen { display: none; width: 100%; height: 100dvh; position: absolute; top: 0; left: 0; flex-direction: column; align-items: center; justify-content: center; }
 .screen.active { display: flex; }
 
 /* START SCREEN */
@@ -153,6 +162,8 @@ body { margin: 0; overflow: hidden; width: 100vw; height: 100vh; font-family: 'S
 </head>
 <body>
 
+<div id="rotateMsg"><div style="font-size:3rem">📱</div><div>세로로 돌려주세요!</div></div>
+
 <!-- START SCREEN -->
 <div id="startScreen" class="screen active">
   <div class="title-emoji">🐱🔍</div>
@@ -194,6 +205,68 @@ body { margin: 0; overflow: hidden; width: 100vw; height: 100vh; font-family: 'S
 </div>
 
 <script>
+// ══════════════════════════════════════════════
+// 오디오 엔진 (Web Audio API)
+// ══════════════════════════════════════════════
+const Audio = {
+  ctx: null,
+  bgmTimer: null,
+  bgmOn: false,
+  bgmIdx: 0,
+  BGM: [523,587,659,698,784,698,659,587,523,494,523,587,659,784,880,784],
+  BGM_MS: 300,
+
+  init() {
+    if (this.ctx) return;
+    try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+  },
+  tone(freq, dur, type='sine', vol=0.22, delay=0) {
+    if (!this.ctx) return;
+    const o = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    o.connect(g); g.connect(this.ctx.destination);
+    o.type = type; o.frequency.value = freq;
+    const t = this.ctx.currentTime + delay;
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.start(t); o.stop(t + dur);
+  },
+  hit() {
+    this.tone(880, 0.06, 'sine', 0.3);
+    this.tone(1047, 0.12, 'sine', 0.25, 0.07);
+  },
+  wrong() {
+    this.tone(220, 0.1, 'sawtooth', 0.28);
+    this.tone(180, 0.2, 'triangle', 0.2, 0.1);
+  },
+  heartLost() {
+    this.tone(300, 0.08, 'square', 0.3);
+    this.tone(200, 0.3, 'sawtooth', 0.25, 0.09);
+  },
+  tick() { this.tone(660, 0.05, 'sine', 0.15); },
+  win() {
+    [523,659,784,880,1047].forEach((f,i) => this.tone(f, 0.18, 'triangle', 0.28, i*0.1));
+    setTimeout(() => { this.tone(1047, 0.5, 'sine', 0.3); this.tone(784, 0.5, 'sine', 0.18); }, 560);
+  },
+  lose() {
+    [523,440,392,330,262].forEach((f,i) => this.tone(f, 0.18, 'triangle', 0.22, i*0.13));
+  },
+  startBGM() {
+    if (this.bgmOn || !this.ctx) return;
+    this.bgmOn = true;
+    const play = () => {
+      if (!this.bgmOn) return;
+      this.tone(this.BGM[this.bgmIdx % this.BGM.length], 0.25, 'triangle', 0.06);
+      if (this.bgmIdx % 4 === 0) this.tone(this.BGM[this.bgmIdx % this.BGM.length] / 2, 0.38, 'sine', 0.05);
+      this.bgmIdx++;
+      this.bgmTimer = setTimeout(play, this.BGM_MS);
+    };
+    play();
+  },
+  stopBGM() { this.bgmOn = false; clearTimeout(this.bgmTimer); }
+};
+
+// ══════════════════════════════════════════════
 // Game State
 let score = 0;
 let hearts = 3;
@@ -239,9 +312,21 @@ function showScreen(screen) {
 }
 
 btnStart.addEventListener('click', startGame);
+btnStart.addEventListener('touchend', (e) => { e.preventDefault(); startGame(); }, { passive: false });
 btnRestart.addEventListener('click', () => { showScreen(startScreen); });
+btnRestart.addEventListener('touchend', (e) => { e.preventDefault(); showScreen(startScreen); }, { passive: false });
+
+function requestFs() {
+  const el = document.documentElement;
+  try {
+    if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  } catch(e) {}
+}
 
 function startGame() {
+  Audio.init();
+  requestFs();
   score = 0;
   hearts = 3;
   timeLeft = 60;
@@ -253,11 +338,14 @@ function startGame() {
   showScreen(gameScreen);
   createFlowers();
   
+  Audio.startBGM();
+
   gameTimer = setInterval(() => {
     timeLeft--;
     timerDisplay.textContent = timeLeft;
     if (timeLeft <= 10) {
       timerDisplay.style.color = '#d32f2f';
+      Audio.tick();
     }
     if (timeLeft <= 0) {
       endGame();
@@ -393,15 +481,23 @@ function spawnBubble() {
   }
   el.appendChild(nameDiv);
 
-  // Touch handler
-  el.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (!isGameRunning) return;
-    handleTap(el, face.isTarget || face.hasWhisker);
-  });
+  // 터치/마우스 클릭 핸들러
+  let tapped = false;
   el.addEventListener('touchstart', (e) => {
     e.preventDefault();
+    tapped = true;
   }, { passive: false });
+  el.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    if (!isGameRunning || !tapped) return;
+    tapped = false;
+    handleTap(el, face.isTarget || face.hasWhisker);
+  }, { passive: false });
+  el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!isGameRunning || tapped) return; // 터치 후 중복 click 방지
+    handleTap(el, face.isTarget || face.hasWhisker);
+  });
 
   gameArea.appendChild(el);
 
@@ -445,22 +541,24 @@ function handleTap(el, isTarget) {
   if (el.classList.contains('face-pop') || el.classList.contains('face-wrong')) return;
 
   if (isTarget) {
-    // Correct!
+    // 정답!
     score++;
     scoreDisplay.textContent = score;
+    Audio.hit();
     el.classList.add('face-pop');
     showFeedback('✅', el);
     setTimeout(() => { if (el.parentNode) el.remove(); }, 350);
   } else {
-    // Wrong!
+    // 오답!
     hearts--;
     updateHUD();
+    Audio.heartLost();
     el.classList.add('face-wrong');
     showFeedback('❌', el);
-    setTimeout(() => { 
+    setTimeout(() => {
       el.classList.remove('face-wrong');
     }, 300);
-    
+
     if (hearts <= 0) {
       endGame();
     }
@@ -512,6 +610,7 @@ function endGame() {
   isGameRunning = false;
   clearInterval(gameTimer);
   clearInterval(spawnTimer);
+  Audio.stopBGM();
   timerDisplay.style.color = '#ff6f00';
 
   setTimeout(() => showResult(), 500);
@@ -525,6 +624,8 @@ function showResult() {
   const badgeContainer = document.getElementById('badgeContainer');
 
   badgeContainer.innerHTML = '';
+
+  if (score >= 15) Audio.win(); else Audio.lose();
 
   if (score >= 15) {
     resultEmoji.textContent = '🏆🎉';
